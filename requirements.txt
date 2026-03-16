@@ -1,0 +1,39 @@
+fastapi
+uvicorn
+colorlog
+# langgraph==0.2.48
+# langchain==0.3.7
+# langchain-core==0.3.18
+# langchain-google-vertexai==2.0.27 (migrado para Azure OpenAI)
+langgraph
+langchain
+langchain-core
+langchain-openai
+azure-storage-blob
+pydantic
+# google.cloud==0.34.0
+# google-cloud-texttospeech==2.21.1
+python-dotenv
+psycopg-binary
+psycopg2-binary
+psycopg-pool
+langgraph-checkpoint-postgres
+uuid
+tempfile2
+python-multipart
+PyPDF2
+docling
+huggingface_hub[hf_xet]
+python-docx
+python-pptx
+requests
+beautifulsoup4
+markdown
+uv
+
+# RAG Dependencies
+faiss-cpu
+langchain-huggingface
+sentence-transformers
+langchain-text-splitters
+langchain-community

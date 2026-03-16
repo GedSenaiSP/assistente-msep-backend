@@ -1,0 +1,15 @@
+.venv
+.env
+*pycache*
+chatbot.json
+*.log*
+consolidated_code.txt
+*.sql*
+
+
+#Ides
+.idea
+
+*.faiss
+*.pkl
+msep_faiss
