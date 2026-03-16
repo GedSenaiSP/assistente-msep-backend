@@ -29,7 +29,7 @@ async def init_db_pool():
             open=False, # Será aberto explicitamente
             min_size=1,
             max_size=20, # Ajuste conforme necessário para produção
-            kwargs={"autocommit": True, "prepare_threshold": 0}
+            kwargs={"autocommit": True, "prepare_threshold": None}
         )
         await DB_POOL.open()
         logger.info("Pool de conexões PostgreSQL inicializado.")
