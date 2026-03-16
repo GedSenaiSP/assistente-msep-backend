@@ -39,7 +39,6 @@ ENV HF_HUB_CACHE_SYMLINKS=0
 
 # Copy the application code
 COPY src/ ./src/
-COPY logs/ ./logs/
 COPY msep.md .
 
 # Copy and run the model downloader script
