@@ -71,8 +71,8 @@ if platform.system() == 'Windows':
 import colorlog
 
 # Handler para arquivo (sem cores)
-file_handler = logging.FileHandler("logs/msep.log", encoding='utf-8')
-file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+# file_handler = logging.FileHandler("logs/msep.log", encoding='utf-8')
+# file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
 
 # Handler para console (com cores)
 console_handler = colorlog.StreamHandler()
@@ -89,7 +89,8 @@ console_handler.setFormatter(colorlog.ColoredFormatter(
 
 logging.basicConfig(
     level=logging.DEBUG,
-    handlers=[file_handler, console_handler]
+    # handlers=[file_handler, console_handler]
+    handlers=[console_handler]
 )
 logger = logging.getLogger(__name__)
 
