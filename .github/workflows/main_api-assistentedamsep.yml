@@ -57,9 +57,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_1F27E0769C3E437CB6F5CC6504281530 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_45C078CAAAA84CBDABC780B446873E58 }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_68C3331D37234930959B3C2D14AC34B8 }}
 
       - name: 'Configure Azure App Settings (Apenas Autenticação Docker)'
         uses: azure/appservice-settings@v1
@@ -70,7 +70,7 @@ jobs:
               { "name": "WEBSITES_PORT", "value": "8000", "slotSetting": false },
               { "name": "DOCKER_REGISTRY_SERVER_URL", "value": "https://ghcr.io", "slotSetting": false },
               { "name": "DOCKER_REGISTRY_SERVER_USERNAME", "value": "${{ github.actor }}", "slotSetting": false },
-              { "name": "DOCKER_REGISTRY_SERVER_PASSWORD", "value": "${{ secrets.GHCR_PAT }}", "slotSetting": false }
+              { "name": "DOCKER_REGISTRY_SERVER_PASSWORD", "value": "${{ secrets.GITHUB_TOKEN }}", "slotSetting": false }
             ]
 
       - name: 'Deploy Docker Container to Azure Web App'
