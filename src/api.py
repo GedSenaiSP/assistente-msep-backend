@@ -115,22 +115,39 @@ app.add_middleware(
     allow_headers=["*"],    # Permite todos os cabeçalhos
 )
 
-API_SECRET_TOKEN = os.getenv("API_SECRET_TOKEN")
-if not API_SECRET_TOKEN:
-    raise ValueError("API_SECRET_TOKEN não está configurado no ambiente.")
+# --- AUTENTICAÇÃO JWT WSO2 ---
+from .auth.jwt_validator import JWTValidator, AuthenticatedUser
 
+WSO2_JWKS_URL = os.getenv("WSO2_JWKS_URL")
+WSO2_ISSUER = os.getenv("WSO2_ISSUER")
+if not WSO2_JWKS_URL or not WSO2_ISSUER:
+    raise ValueError("WSO2_JWKS_URL e WSO2_ISSUER devem estar configurados no ambiente.")
+
+jwt_validator = JWTValidator(jwks_url=WSO2_JWKS_URL, issuer=WSO2_ISSUER)
 security = HTTPBearer()
 
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    if credentials.scheme != "Bearer" or credentials.credentials != API_SECRET_TOKEN:
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> AuthenticatedUser:
+    """Valida o JWT do WSO2 e retorna AuthenticatedUser. Roles continuam pelo banco."""
+    try:
+        return jwt_validator.validate(credentials.credentials)
+    except Exception as e:
+        logger.warning(f"JWT validation failed: {e}")
         raise HTTPException(
             status_code=401,
-            detail="Token inválido ou não fornecido.",
+            detail="Token inválido ou expirado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return credentials.credentials
 
-# --- FIM DA CONFIGURAÇÃO DO CORS ---
+# --- RBAC (M-03: Defesa em Profundidade) ---
+from .auth.rbac import require_admin, require_self_or_admin
+
+async def verify_admin(credentials: HTTPAuthorizationCredentials = Depends(security)) -> AuthenticatedUser:
+    """Dependency que valida JWT + exige role administrativa."""
+    auth = await verify_token(credentials)
+    await require_admin(auth)
+    return auth
+
+# --- FIM DA CONFIGURAÇÃO DO CORS E AUTH ---
 
 doc_converter: DocumentConverter = None
 
@@ -1441,7 +1458,7 @@ async def rename_thread(body: RenameThreadRequest):
         logger.error(f"Erro inesperado ao renomear a conversa {body.thread_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao renomear a conversa.")
 
-@app.post("/user/set_department", status_code=200, dependencies=[Depends(verify_token)])
+@app.post("/user/set_department", status_code=200, dependencies=[Depends(verify_admin)])
 async def set_user_department(body: SetDepartmentRequest):
     """
     Define ou atualiza o departamento regional de um usuário.
@@ -1573,7 +1590,7 @@ async def create_or_update_user(body: CreateUserRequest):
         logger.error(f"Erro ao criar/atualizar usuário: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao processar o usuário.")
 
-@app.get("/users", response_model=AllUsersResponse, dependencies=[Depends(verify_token)])
+@app.get("/users", response_model=AllUsersResponse, dependencies=[Depends(verify_admin)])
 async def get_all_users():
     """
     Recupera todos os usuários cadastrados.
@@ -1602,8 +1619,9 @@ async def get_all_users():
         logger.error(f"Erro ao recuperar usuários: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar usuários.")
 
-@app.get("/user/{user_id}", response_model=UserResponse, dependencies=[Depends(verify_token)])
-async def get_user(user_id: str):
+@app.get("/user/{user_id}", response_model=UserResponse)
+async def get_user(user_id: str, auth: AuthenticatedUser = Depends(verify_token)):
+    await require_self_or_admin(auth, user_id)
     """
     Recupera um usuário específico pelo seu ID.
     """
@@ -1632,7 +1650,7 @@ async def get_user(user_id: str):
         logger.error(f"Erro ao recuperar usuário {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar o usuário.")
 
-@app.get("/metrics", response_model=MetricsResponse, dependencies=[Depends(verify_token)])
+@app.get("/metrics", response_model=MetricsResponse, dependencies=[Depends(verify_admin)])
 async def get_metrics(user_id: str):
     """
     Fornece um conjunto de métricas sobre o uso da plataforma.
@@ -1802,7 +1820,7 @@ async def get_metrics(user_id: str):
         logger.error(f"Erro ao gerar métricas: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao gerar métricas.")
 
-@app.get("/metrics/by_school", response_model=MetricsResponse, dependencies=[Depends(verify_token)])
+@app.get("/metrics/by_school", response_model=MetricsResponse, dependencies=[Depends(verify_admin)])
 async def get_metrics_by_school(user_id: str):
     """
     Fornece um conjunto de métricas sobre o uso da plataforma para a escola do usuário.
@@ -1979,7 +1997,7 @@ async def get_metrics_by_school(user_id: str):
         logger.error(f"Erro ao gerar métricas para a escola do usuário {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Erro interno ao gerar métricas para a escola.")
 
-@app.get("/metrics/by_department", response_model=MetricsResponse, dependencies=[Depends(verify_token)])
+@app.get("/metrics/by_department", response_model=MetricsResponse, dependencies=[Depends(verify_admin)])
 async def get_metrics_by_department(user_id: str):
     """
     Fornece um conjunto de métricas sobre o uso da plataforma para o departamento regional do usuário.
@@ -2309,8 +2327,9 @@ async def create_manual_plan(body: ManualPlanRequest):
         logger.error(f"Erro ao armazenar plano manual: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao armazenar o plano manual.")
 
-@app.get("/user/{user_id}/role", response_model=UserRoleResponse, dependencies=[Depends(verify_token)])
-async def get_user_role(user_id: str):
+@app.get("/user/{user_id}/role", response_model=UserRoleResponse)
+async def get_user_role(user_id: str, auth: AuthenticatedUser = Depends(verify_token)):
+    await require_self_or_admin(auth, user_id)
     """
     Recupera a role de um usuário específico.
     """
@@ -2332,7 +2351,7 @@ async def get_user_role(user_id: str):
         logger.error(f"Erro ao recuperar role do usuário {user_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar a role do usuário.")
 
-@app.post("/plan/update_status", status_code=200, dependencies=[Depends(verify_token)])
+@app.post("/plan/update_status", status_code=200, dependencies=[Depends(verify_admin)])
 async def update_plan_status(body: UpdatePlanStatusRequest):
     """
     Atualiza o estado de um plano de ensino, salva no histórico com comentário e notifica quando apropriado.
@@ -2476,7 +2495,7 @@ async def get_plan_status_history(plan_id: str):
         logger.error(f"Erro ao buscar histórico do plano {plan_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Erro interno ao buscar histórico do plano.")
 
-@app.post("/plan/archive", status_code=200, dependencies=[Depends(verify_token)])
+@app.post("/plan/archive", status_code=200, dependencies=[Depends(verify_admin)])
 async def archive_plan(body: ArchivePlanRequest):
     """
     Arquiva ou desarquiva um plano de ensino.
@@ -2505,8 +2524,9 @@ async def archive_plan(body: ArchivePlanRequest):
 # ENDPOINTS DE NOTIFICAÇÕES
 # ============================================================================
 
-@app.get("/notifications", response_model=NotificationListResponse, dependencies=[Depends(verify_token)])
-async def get_notifications(user_id: str, limit: int = 50, offset: int = 0, unread_only: bool = False):
+@app.get("/notifications", response_model=NotificationListResponse)
+async def get_notifications(user_id: str, limit: int = 50, offset: int = 0, unread_only: bool = False, auth: AuthenticatedUser = Depends(verify_token)):
+    await require_self_or_admin(auth, user_id)
     """
     Retorna as notificações de um usuário.
     """
@@ -2561,8 +2581,9 @@ async def get_notifications(user_id: str, limit: int = 50, offset: int = 0, unre
         raise HTTPException(status_code=500, detail="Erro interno ao buscar notificações.")
 
 
-@app.post("/notifications/mark-read", dependencies=[Depends(verify_token)])
-async def mark_notifications_as_read(body: MarkAsReadRequest, user_id: str):
+@app.post("/notifications/mark-read")
+async def mark_notifications_as_read(body: MarkAsReadRequest, user_id: str, auth: AuthenticatedUser = Depends(verify_token)):
+    await require_self_or_admin(auth, user_id)
     """
     Marca notificações como lidas.
     """
@@ -3480,7 +3501,7 @@ async def process_exercises_generation(
         await update_resource(status=ResourceStatus.failed.value, error=str(e))
 
 
-@app.post("/exercises/generate", response_model=DidacticResourceJobResponse)
+@app.post("/exercises/generate", response_model=DidacticResourceJobResponse, dependencies=[Depends(verify_token)])
 async def generate_exercises_endpoint(
     request: GenerateExercisesRequest,
     background_tasks: BackgroundTasks,
@@ -3829,8 +3850,9 @@ async def preview_exercises(resource_id: str):
 # ENDPOINTS DE NOTIFICAÇÕES
 # ============================================================================
 
-@app.get("/notifications", response_model=NotificationListResponse, dependencies=[Depends(verify_token)])
-async def get_notifications(user_id: str, limit: int = 50, offset: int = 0, unread_only: bool = False):
+@app.get("/notifications", response_model=NotificationListResponse)
+async def get_notifications(user_id: str, limit: int = 50, offset: int = 0, unread_only: bool = False, auth: AuthenticatedUser = Depends(verify_token)):
+    await require_self_or_admin(auth, user_id)
     """
     Retorna as notificações de um usuário.
     """
@@ -3885,8 +3907,9 @@ async def get_notifications(user_id: str, limit: int = 50, offset: int = 0, unre
         raise HTTPException(status_code=500, detail="Erro interno ao buscar notificações.")
 
 
-@app.post("/notifications/mark-read", dependencies=[Depends(verify_token)])
-async def mark_notifications_as_read(body: MarkAsReadRequest, user_id: str):
+@app.post("/notifications/mark-read")
+async def mark_notifications_as_read(body: MarkAsReadRequest, user_id: str, auth: AuthenticatedUser = Depends(verify_token)):
+    await require_self_or_admin(auth, user_id)
     """
     Marca notificações como lidas.
     """

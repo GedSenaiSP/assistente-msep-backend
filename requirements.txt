@@ -37,3 +37,4 @@ langchain-huggingface
 sentence-transformers
 langchain-text-splitters
 langchain-community
+pyjwt[crypto]>=2.12.1
